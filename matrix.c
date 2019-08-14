@@ -20,16 +20,16 @@ struct matrix *matrix_init(unsigned int nlines, unsigned int ncols){
         struct matrix *init=NULL;
         init=(struct matrix *) malloc(sizeof(struct matrix));
         if(init==NULL){
-            printf("INIT() ERROR 0 \n");
+            //printf("INIT() ERROR 0 \n");
             return NULL;
         }
         if(nlines<=0 || ncols<=0){
-            printf("MUST CHOOSE LINES AND COLS GREATER THAN ZERO");
+            //printf("MUST CHOOSE LINES AND COLS GREATER THAN ZERO \n");
             return NULL;
         }
         double *elemento=NULL;
         double len=0;
-        int i,j;
+        unsigned int i,j;
         len=sizeof(double *)*nlines + sizeof(double)*nlines*ncols;
         init->elems=(double **)malloc(len);
         if (init->elems==NULL){
@@ -64,11 +64,7 @@ struct matrix *matrix_init(unsigned int nlines, unsigned int ncols){
  * Postconditions: La mémoire de @matrix est libérée.
  */
 void matrix_free(struct matrix* matrix){
-    if(matrix==NULL){
-        printf("PAS DE MATRICE A SUPPRIMER");
-        exit(EXIT_FAILURE);
-
-    }
+	if(matrix){
     if(matrix->elems==NULL){
         free(matrix);
     }
@@ -77,6 +73,7 @@ void matrix_free(struct matrix* matrix){
     free(matrix);
     }
     printf("Matrice a l'adresse : %p libérée\n",matrix);
+	}
 }
 
 
@@ -98,7 +95,7 @@ void matrix_free(struct matrix* matrix){
 
 
 double matrix_get(const struct matrix *matrix, unsigned int i, unsigned int j){
-    if(i>matrix->nlines || j>matrix->ncols || i<0 || j<0){
+    if(i>matrix->nlines || j>matrix->ncols ){
         printf("GET() SEGFAULT MORON");
         exit(EXIT_FAILURE);
         }
@@ -122,8 +119,11 @@ double matrix_get(const struct matrix *matrix, unsigned int i, unsigned int j){
  * Postconditions: L'élément (@i,@j) de la matrice @matrix vaut @val.
  */
 int matrix_set(struct matrix *matrix, unsigned int i, unsigned int j, double val){
-        if(i>=matrix->nlines || j>=matrix->ncols || i<0 || j<0){
-        printf("SET() SEGFAULT MORON");
+		if(!matrix){
+			return -1;
+		}
+        if(i>=matrix->nlines || j>=matrix->ncols){
+        printf("SET() SEGFAULT MORON\n");
         return -1;
         }
     //printf("Valeur de matrix[%d][%d] = %f\n",i,j,*(*((matrix->elems)+i)+j));
@@ -159,7 +159,7 @@ struct matrix *matrix_add(const struct matrix *m1, const struct matrix *m2){
         return NULL;
     }
     unsigned int lines=m1->nlines, cols=m1->ncols;
-    int i,j;
+    unsigned int i,j;
     double tot=0;
 
     //CREATION NOUVELLE MATRICE RESULT
@@ -200,7 +200,7 @@ struct matrix *matrix_transpose(const struct matrix *matrix){
         printf("ADD() ERROR 1");
         return NULL;
     }
-    int i,j;
+    unsigned int i,j;
     //INTERVERTIR LE NOMBRE DE LIGNE/COLONNES
 
     unsigned int cols=matrix->nlines, lines=matrix->ncols;
@@ -250,7 +250,7 @@ struct matrix *matrix_mult(const struct matrix *m1, const struct matrix *m2){
     mult=matrix_init(lines,cols);
     //INITIALISATION VAR
     double **momo=m1->elems,**mimi=m2->elems,**res=mult->elems;
-    int i,j,k;
+    unsigned int i,j,k;
     for(i=0;i<lines;i++){
         for(j=0;j<cols;j++){
             for(k=0;k<m1->ncols;k++){
@@ -275,12 +275,6 @@ struct matrix *matrix_mult(const struct matrix *m1, const struct matrix *m2){
  * Préconditions: matrix != NULL
  * Postconditions: Le fichier @path contient la matrice tableau sauvegardée
  */
- /*MATRICE DE LA FORME :   @matrix->nlines @matrix->ncols
-  *                         X X X
-  *                         X X X
-  *                         X X X
-  *
-  */
 int matrix_save (const struct matrix *matrix, char *path){
     if(matrix==NULL || path==NULL){
         printf("SAVE() ERROR 1\n");
@@ -293,18 +287,26 @@ int matrix_save (const struct matrix *matrix, char *path){
         return -1;
     }
 
-    //ECRITURE DANS FICHIER
-    int lines=matrix->nlines,cols=matrix->ncols;
-    fprintf(outFile,"%d %d\n",lines,cols);
-    int i,j;
+    //ECRITURE DANS FICHIER 8 bits, Lines,Cols
+    unsigned int lines=matrix->nlines,cols=matrix->ncols;
+    if(fwrite(&(lines),sizeof(const unsigned int), 1,outFile)!= 1){
+		return -1;
+	}
+	if(fwrite(&(cols),sizeof(const unsigned int), 1,outFile)!= 1){
+		return -1;
+	}
+	//ECRITURE DANS FICHIER 8 bits, Value[i][j]
+    unsigned int i,j;
     for(i=0;i<lines;i++){
         for(j=0;j<cols;j++){
-            fprintf(outFile,"%lf ",(matrix->elems)[i][j]);
-
+            if(fwrite(&((matrix->elems)[i][j]),sizeof(double), 1,outFile)!= 1){
+				return -1;
+			}
         }
-        fprintf(outFile,"\n");
     }
-    fclose(outFile);
+    if(fclose(outFile)!=0){
+			return -1;
+	}
     return 0;
 }
 
@@ -322,7 +324,6 @@ int matrix_save (const struct matrix *matrix, char *path){
  * Préconditions: path != NULL
  * Postconditions: @path est inchangée
  */
-
 struct matrix *matrix_load (char *path){
     if(path==NULL){
         return NULL;
@@ -334,24 +335,33 @@ struct matrix *matrix_load (char *path){
         return NULL;
     }
     unsigned int lines,cols;
-    fscanf(inFile,"%u",&lines);
-    fscanf(inFile," %u",&cols);
+    if (fread(&(lines), sizeof(const unsigned int), 1, inFile)!= 1) {
+		return NULL;
+	}
+	if (fread(&(cols),  sizeof(const unsigned int), 1, inFile)!= 1) {
+		return NULL;
+	}
     struct matrix *load=NULL;
     load=matrix_init(lines,cols);
     double number=0;
-    int i,j;
+    unsigned int i,j;
     for(i=0;i<lines;i++){
         for(j=0;j<cols;j++){
-        fscanf(inFile,"%lf",&number);
+			if (fread(&(number),  sizeof(double), 1, inFile)!= 1) {
+				return NULL;
+			}
         matrix_set(load,i,j,number);
         }
     }
 
-
+    if(!feof(inFile)){
+			return NULL;
+	}
     //FERMETURE FICHIER
-    fclose(inFile);
-    return load;
-
+    if(fclose(inFile)!=0){
+			return NULL;
+	}
+	return load;
 }
 
 //=================================================================================================================================================
@@ -573,7 +583,7 @@ int sp_matrix_set(struct sp_matrix *matrix, unsigned int i, unsigned int j, doub
         printf("SET() ERROR 1 Not existing");
         return -1;
     }
-    if (i<0 || i>=matrix->nlines || j<0 || j>=matrix->ncols){
+    if (i>=matrix->nlines || j>=matrix->ncols){
         printf("SET() ERROR 2 Not in the matrix\n");
         return -1;
     }
@@ -804,7 +814,7 @@ double sp_matrix_get(const struct sp_matrix *matrix, unsigned int i, unsigned in
         printf("GET() ERROR 1");
         return 0;
     }
-    if (i<0 || i>=matrix->nlines || j<0 || j>=matrix->ncols){
+    if (i>=matrix->nlines || j>=matrix->ncols){
         printf("SET() ERROR 2 Not in the matrix\n");
         return 0;
     }
@@ -1045,12 +1055,6 @@ struct matrix *sp_matrix_to_matrix (const struct sp_matrix *matrix){
  *
  * Préconditions: matrix != NULL
  * Postconditions: Le fichier @path contient la matrice creuse sauvegardée
- * Exemple 3x3
- *MATRICE DE LA FORME :   @matrix->nlines @matrix->ncols @matrix->precision
- *                         X X X
- *                         X X X
- *                         X X X
- *
  */
 int sp_matrix_save (const struct sp_matrix *matrix, char *path){
 
@@ -1065,17 +1069,43 @@ int sp_matrix_save (const struct sp_matrix *matrix, char *path){
         return -1;
     }
 
-    //ECRITURE DANS FICHIER
-    int lines=matrix->nlines,cols=matrix->ncols;
-    fprintf(outFile,"%d %d %lf\n",lines,cols,matrix->precision);
-    unsigned int i,j;
-    for(i=0;i<lines;i++){
-        for(j=0;j<cols;j++){
-            fprintf(outFile,"%lf ",sp_matrix_get(matrix,i,j));
-        }
-        fprintf(outFile,"\n");
-    }
-    fclose(outFile);
+    //ECRITURE DANS FICHIER 16 bits INFO Lignes,Cols,Precision
+    unsigned int lines=matrix->nlines,cols=matrix->ncols;
+    if(fwrite(&(lines),sizeof(const unsigned int), 1,outFile)!= 1){
+		return -1;
+	}
+	if(fwrite(&(cols),sizeof(const unsigned int), 1,outFile)!= 1){
+		return -1;
+	}
+	if(fwrite(&(matrix->precision),sizeof(double), 1,outFile)!= 1){
+		return -1;
+	}
+    //ECRITURE DANS FICHIER ELEMENT NON NUL: NLigne,NCols,Value
+    unsigned int a,b;
+    struct line *temp_l=NULL;
+    temp_l=matrix->lines;
+    while(temp_l){
+		a=temp_l->i;
+		struct elem *temp_e=NULL;
+		temp_e=temp_l->elems;
+		while(temp_e){
+			b=temp_e->j;
+			if(fwrite(&(a),sizeof(const unsigned int), 1,outFile)!= 1){
+				return -1;
+			}
+			if(fwrite(&(b),sizeof(const unsigned int), 1,outFile)!= 1){
+				return -1;
+			}
+			if(fwrite(&(temp_e->value),sizeof(double), 1,outFile)!= 1){
+				return -1;
+			}
+			temp_e=temp_e->next;
+		}
+		temp_l=temp_l->next;
+	}
+	if(fclose(outFile)!=0){
+			return -1;
+	}
     return 0;
 }
 /* sp_matrix_load
@@ -1099,26 +1129,45 @@ struct sp_matrix *sp_matrix_load (char *path){
     }
     unsigned int lines,cols;
     double precision;
-    fscanf(inFile,"%u",&lines);
-    fscanf(inFile," %u",&cols);
-    fscanf(inFile," %lf",&precision);
+    //LECTURE EN-TETE DES 16 premiers bits : Lines,Cols,Precision;
+    
+    if(fread(&(lines), sizeof(const unsigned int), 1, inFile)!=1){
+		return NULL;
+	}
+	if(fread(&(cols), sizeof(const unsigned int), 1, inFile)!=1){
+		return NULL;
+	}
+	if(fread(&(precision), sizeof(double), 1, inFile)!=1){
+		return NULL;
+	}
+	//INITIE MATRICE
     struct sp_matrix *load=NULL;
     load=sp_matrix_init(precision,lines,cols);
+    if(!load){
+		return NULL;
+	}
+	
     double number=0;
-    int i,j;
-    for(i=0;i<lines;i++){
-        for(j=0;j<cols;j++){
-        fscanf(inFile,"%lf",&number);
+    unsigned int i,j;
+    while(fread(&(i), sizeof(const unsigned int), 1, inFile)==1){
+		if(fread(&(j), sizeof(const unsigned int), 1, inFile)!=1){
+		return NULL;
+		}
+		if(fread(&(number), sizeof(double), 1, inFile)!=1){
+		return NULL;
+		}
         if(sp_matrix_set(load,i,j,number)){
             fclose(inFile);
             return NULL;
         }
-        }
     }
-
-
+    if (!feof(inFile)){
+			return NULL;
+	}
     //FERMETURE FICHIER
-    fclose(inFile);
+    if(fclose(inFile)!=0){
+			return NULL;
+	}
     return load;
 
 }
